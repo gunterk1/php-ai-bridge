@@ -1,0 +1,30 @@
+services:
+  ai-service:
+    build: ./ai-service
+    environment:
+      AI_PROVIDER: ${AI_PROVIDER:-openai}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      CHAT_MODEL: ${CHAT_MODEL:-gpt-4o-mini}
+      EMBED_MODEL: ${EMBED_MODEL:-text-embedding-3-small}
+    ports:
+      - "8000:8000"
+    # Lets the container reach a model server running on the Linux host
+    # (e.g. Ollama on localhost:11434) via http://host.docker.internal:...
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  php-app:
+    build: ./php-app
+    environment:
+      AI_SERVICE_URL: http://ai-service:8000
+    ports:
+      - "8080:8080"
+    depends_on:
+      ai-service:
+        condition: service_healthy

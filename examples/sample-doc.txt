@@ -1,0 +1,13 @@
+php-ai-bridge is a small reference implementation that shows how a PHP application
+can integrate AI capabilities through a clean REST boundary.
+
+The PHP layer never talks to a model directly. Instead it calls a Python service
+that wraps the model behind a small HTTP API. The Python service uses LangChain to
+split documents into chunks, embed them, store the vectors, and answer questions
+with retrieval-augmented generation.
+
+The design is provider-agnostic. Because OpenAI and self-hosted servers such as
+LocalAI or Ollama expose the same OpenAI-compatible API, the same code runs
+against an external service or a model on your own hardware. Switching between them
+is a configuration change, not a rewrite. This keeps sensitive documents on your
+own infrastructure when privacy requires it.
