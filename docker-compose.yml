@@ -28,3 +28,18 @@ services:
     depends_on:
       ai-service:
         condition: service_healthy
+
+  # The same product surface in a second ecosystem. It talks to the identical
+  # ai-service over the identical REST boundary — running both at once is the
+  # point: open :8080 and :8081 side by side and the answers are the same,
+  # because the AI capability never lived in the app layer.
+  node-app:
+    build: ./node-app
+    environment:
+      AI_SERVICE_URL: http://ai-service:8000
+      PORT: 8081
+    ports:
+      - "8081:8081"
+    depends_on:
+      ai-service:
+        condition: service_healthy

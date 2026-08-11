@@ -15,24 +15,34 @@ so sensitive documents can stay on your own infrastructure.
 ```
   Browser
      │  (HTML + fetch)
-     ▼
-┌──────────────────────┐        REST / JSON        ┌───────────────────────────┐
-│  php-app  (PHP 8.3)  │  ───────────────────────▶ │  ai-service (FastAPI)     │
-│  • front controller  │   POST /ingest            │  • LangChain               │
-│  • AiClient (curl,   │   POST /query             │  • RecursiveCharacterSplit │
-│    retries, backoff) │   GET  /health            │  • embeddings + vector DB  │
-│  • minimal UI        │  ◀─────────────────────── │  • RAG answer + sources    │
-└──────────────────────┘                           └───────────────────────────┘
+     ├──────────────────────────┐
+     ▼                          ▼
+┌──────────────────────┐  ┌──────────────────────┐      REST / JSON       ┌───────────────────────────┐
+│  php-app  (PHP 8.3)  │  │ node-app (TS, Node22)│  ────────────────────▶ │  ai-service (FastAPI)     │
+│  • front controller  │  │  • front controller  │   POST /ingest         │  • LangChain               │
+│  • AiClient (curl,   │  │  • AiClient (fetch,  │   POST /query          │  • RecursiveCharacterSplit │
+│    retries, backoff) │  │    same retry policy)│   GET  /health         │  • embeddings + vector DB  │
+│  • minimal UI        │  │  • contract guards   │  ◀──────────────────── │  • RAG answer + sources    │
+└──────────────────────┘  └──────────────────────┘                        └───────────────────────────┘
                                                       │ OpenAI-compatible API
                                           ┌───────────┴────────────┐
                                           ▼                        ▼
                                     OpenAI (external)      LocalAI / Ollama (local)
 ```
 
-PHP owns the product surface; the AI capability lives behind HTTP. The two sides
-scale, deploy and fail independently. This is the same shape as Nextcloud's
-`integration_openai`-style apps, where the collaboration platform calls an AI
-backend over HTTP and stays agnostic about where that backend lives.
+The app owns the product surface; the AI capability lives behind HTTP. The two
+sides scale, deploy and fail independently.
+
+**Two product surfaces, one boundary.** `php-app` and `node-app` are behaviour-
+identical clients of the same service: same three endpoints, same retry policy,
+same environment variable to point at a local or an external model. They exist
+side by side to make the central claim checkable rather than rhetorical — if the
+integration pattern is sound, the language of the app layer is an implementation
+detail. Run both and compare the answers at `:8080` and `:8081`.
+
+This is the same shape as Nextcloud's `integration_openai`-style apps, where the
+collaboration platform calls an AI backend over HTTP and stays agnostic about
+where that backend lives.
 
 ## Endpoints
 
@@ -42,7 +52,8 @@ backend over HTTP and stays agnostic about where that backend lives.
 | POST   | `/api/ingest`  | `POST /ingest`    | Chunk, embed and store a document         |
 | POST   | `/api/query`   | `POST /query`     | Retrieve top-k chunks, answer with sources|
 
-`/` serves a minimal UI to try both steps in the browser.
+The Node app exposes exactly the same three paths on `:8081`. `/` serves a
+minimal UI on both.
 
 ## Run it
 
@@ -54,7 +65,8 @@ cp .env.example .env
 # or switch AI_PROVIDER=local and point OPENAI_BASE_URL at your local server.
 
 docker compose up --build
-# UI:         http://localhost:8080
+# PHP UI:     http://localhost:8080
+# Node UI:    http://localhost:8081
 # AI service: http://localhost:8000/health
 ```
 
@@ -76,7 +88,37 @@ uvicorn app.main:app --port 8000
 # terminal 2 — PHP app
 cd php-app
 AI_SERVICE_URL=http://localhost:8000 php -S localhost:8080 -t public public/index.php
+
+# terminal 3 — Node app (optional; the same surface in TypeScript)
+cd node-app
+npm install && npm run build
+AI_SERVICE_URL=http://localhost:8000 npm start
 ```
+
+## The TypeScript side
+
+`node-app/` is a deliberate second implementation rather than a port for its own
+sake. Three things are worth a look:
+
+**The retry policy is identical, and tested.** Network errors and 5xx are retried
+with 200 ms then 400 ms backoff; 4xx — including a 429 from an exhausted quota —
+is surfaced immediately, because the same request would fail the same way.
+`npm test` runs eleven behavioural tests against a throwaway HTTP server, using
+`node:test` and `node:assert` so the app stays dependency-free.
+
+**The REST boundary is validated, not cast.** A boundary is exactly where the
+compiler's guarantees stop: it knows nothing about what FastAPI actually put on
+the wire. Writing `await res.json() as HealthResponse` would keep the feeling of
+type safety while discarding the substance, and the first schema change on the
+Python side would surface as an undefined somewhere far away. So every response
+passes through hand-written guards in `src/contracts.ts` and a violation raises a
+`ContractError` naming the endpoint and the offending field. `tsconfig.json` runs
+`strict` plus `noUncheckedIndexedAccess`, which is what makes skipping those
+guards impossible rather than merely discouraged.
+
+**No runtime dependencies.** Three routes and one static file do not justify a
+framework; `node:http` and the built-in `fetch` cover it. The production image is
+the Node base plus roughly 20 kB of compiled JavaScript.
 
 ## Local vs external: one code path
 
