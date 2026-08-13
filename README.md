@@ -120,6 +120,31 @@ guards impossible rather than merely discouraged.
 framework; `node:http` and the built-in `fetch` cover it. The production image is
 the Node base plus roughly 20 kB of compiled JavaScript.
 
+## Does it actually stay grounded?
+
+The system prompt promises two things: answer only from the retrieved context, and say
+"I do not know" when the answer is not there. Claims like that are cheap. `ai-service/eval/`
+is a labelled dataset and a harness that checks them — 8 answerable questions with the
+source chunk labelled, 5 that the corpus genuinely cannot answer, and four metrics of
+which three are deterministic set arithmetic rather than a second model's opinion.
+
+```bash
+cd ai-service
+python -m unittest discover -s . -p "test_*.py"   # 31 metric tests, no service needed
+python -m eval.run_eval --k 4                     # scorecard against a running service
+```
+
+Against a self-hosted `llama3.2:1b` on Ollama it holds at k=4 — every unanswerable
+question refused, every citation grounded. At k=2 it does not: three invented citations
+and three questions answered that should not have been, including a confident
+*"the Kubernetes operator … is maintained by [OpenAI]"* for a project that has neither.
+The failure mode is context starvation, not context overload.
+
+The suite also found a real defect in this repo: `/ingest` was not idempotent, so
+re-ingesting a document left duplicate chunks that crowded out genuinely different ones
+in the top-k. Fixed, and recall@2 went from 0.750 to 1.000 as a result. Full write-up
+including the limitations of the abstention metric: [ai-service/eval/README.md](ai-service/eval/README.md).
+
 ## Local vs external: one code path
 
 Both OpenAI and self-hosted servers expose the same OpenAI-compatible HTTP API, so

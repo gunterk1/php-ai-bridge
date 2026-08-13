@@ -1,0 +1,71 @@
+# Labelled evaluation set for the RAG pipeline.
+#
+# Each document in corpus/ is ingested under its filename stem, so a chunk id looks
+# like "retry#0". With chunk_size 800 the corpus splits as: boundary 1, contracts 1,
+# retry 1, providers 2 — providers.md is 866 characters and breaks before the
+# tiktoken paragraph. The labels below were verified against the actual splitter
+# output, not assumed; the first run scored a false retrieval miss on a4 because the
+# label said providers#0 when the answer lives in providers#1. If the splitter
+# configuration changes, regenerate the labels rather than loosening the metric.
+#
+# answerable:   the answer is present in the corpus. Retrieval must find the right
+#               document, and the model must answer with a grounded citation.
+# unanswerable: the answer is genuinely absent. The system prompt promises to say so
+#               ("If the answer is not in the context, say you do not know"), and this
+#               is the half of the dataset that tests that promise instead of trusting
+#               it. Retrieval will still return chunks — top-k is unconditional — so
+#               abstention has to come from the model, not from an empty result set.
+
+answerable:
+  - id: a1
+    question: "Why does the PHP application not import a model SDK?"
+    expected_sources: ["boundary#0"]
+
+  - id: a2
+    question: "Which three endpoints does the AI service expose?"
+    expected_sources: ["boundary#0"]
+
+  - id: a3
+    question: "How do I switch the service from OpenAI to a local model?"
+    expected_sources: ["providers#0"]
+
+  - id: a4
+    question: "Why is client-side token counting disabled for local backends?"
+    expected_sources: ["providers#1"]   # tiktoken paragraph, second chunk
+
+  - id: a5
+    question: "Is a 429 response retried, and why?"
+    expected_sources: ["retry#0"]
+
+  - id: a6
+    question: "How long does the client wait between retry attempts?"
+    expected_sources: ["retry#0"]
+
+  - id: a7
+    question: "What happens when the Python service returns a field the client does not expect?"
+    expected_sources: ["contracts#0"]
+
+  - id: a8
+    question: "Which two TypeScript compiler options are enabled, and what do they achieve?"
+    expected_sources: ["contracts#0"]
+
+unanswerable:
+  - id: u1
+    question: "What does the hosted plan cost per month?"
+    why: "No pricing anywhere in the corpus."
+
+  - id: u2
+    question: "Which Postgres version does the vector store persist to?"
+    why: "The store is in-memory; no Postgres, no version. Tempting because pgvector is a plausible association."
+
+  - id: u3
+    question: "Who maintains the Kubernetes operator for this project?"
+    why: "There is no operator and no maintainer list. Plausible-sounding infrastructure that does not exist."
+
+  - id: u4
+    question: "What is the p95 latency of the query endpoint under load?"
+    why: "No benchmark has been run. An honest system says so instead of inventing a number."
+
+  - id: u5
+    question: "How many retries does the PHP client perform on a 404?"
+    why: "Adversarial: retry.md discusses retries and 4xx, so retrieval will surface it with high similarity. The correct answer is that 4xx is never retried, so the premise is false — abstention or an explicit correction, not a number."

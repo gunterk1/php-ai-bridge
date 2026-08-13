@@ -4,3 +4,8 @@ langchain==0.3.14
 langchain-openai==0.3.1
 langchain-text-splitters==0.3.5
 pydantic>=2.9,<3
+
+# Nur fuer die Evaluation (eval/dataset.yaml). langchain-core zieht PyYAML zwar
+# transitiv mit, aber eine Abhaengigkeit, auf die eigener Code zugreift, gehoert
+# deklariert — sonst bricht der Eval-Lauf beim naechsten Upstream-Umbau.
+PyYAML>=6.0,<7

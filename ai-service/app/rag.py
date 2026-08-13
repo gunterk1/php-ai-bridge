@@ -53,6 +53,12 @@ class RagEngine:
             model=chat_model, base_url=base_url, api_key=api_key, temperature=0
         )
         self.store = InMemoryVectorStore(self.embeddings)
+        # Chunk ids per document, so re-ingesting a doc_id can replace instead of
+        # duplicate. Found by the evaluation suite: ingesting the same document twice
+        # left both copies in the store, and a single query then returned the same
+        # chunk in two of its top-k slots — half the context window spent on a
+        # duplicate. See eval/README.md.
+        self._chunk_ids: dict[str, list[str]] = {}
         self.splitter = RecursiveCharacterTextSplitter(
             chunk_size=800, chunk_overlap=120
         )
@@ -64,13 +70,25 @@ class RagEngine:
         )
 
     def ingest(self, doc_id: str, text: str) -> int:
-        """Chunk, embed and store a document. Returns the number of chunks stored."""
+        """Chunk, embed and store a document. Returns the number of chunks stored.
+
+        Idempotent per doc_id: ingesting the same document again replaces its chunks
+        rather than adding a second copy. Without this, a re-ingest silently degrades
+        every later query — duplicates crowd out genuinely different chunks in the
+        top-k, and the answer is built from less material than it appears to be.
+        """
+        previous = self._chunk_ids.get(doc_id)
+        if previous:
+            self.store.delete(ids=previous)
+
         chunks = self.splitter.split_text(text)
+        ids = [f"{doc_id}#{i}" for i in range(len(chunks))]
         docs = [
             Document(page_content=chunk, metadata={"source": doc_id, "chunk": i})
             for i, chunk in enumerate(chunks)
         ]
-        self.store.add_documents(docs)
+        self.store.add_documents(docs, ids=ids)
+        self._chunk_ids[doc_id] = ids
         return len(docs)
 
     def query(self, question: str, k: int = 4) -> dict:
