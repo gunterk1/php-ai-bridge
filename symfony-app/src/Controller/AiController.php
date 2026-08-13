@@ -7,6 +7,7 @@ namespace App\Controller;
 use App\Event\QueryAnswered;
 use App\Repository\QueryLogRepository;
 use App\Service\AiClient;
+use App\Service\CitationExtractor;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -23,6 +24,7 @@ final class AiController extends AbstractController
     public function __construct(
         private readonly AiClient $ai,
         private readonly EventDispatcherInterface $events,
+        private readonly CitationExtractor $citations,
     ) {
     }
 
@@ -66,14 +68,19 @@ final class AiController extends AbstractController
             /** @var list<string> $sources */
             $sources = array_values(array_map('strval', $result['sources'] ?? []));
 
+            $answer = (string) ($result['answer'] ?? '');
+            $citations = $this->citations->analyse($answer, $sources);
+
             // Answer first, bookkeeping second — the listener persists this and is
             // written so that a failure there cannot take the answer down.
             $this->events->dispatch(new QueryAnswered(
                 question: $question,
-                answer: (string) ($result['answer'] ?? ''),
+                answer: $answer,
                 sources: $sources,
                 provider: (string) ($result['provider'] ?? 'unknown'),
                 latencyMs: $latencyMs,
+                groundedCitations: $citations['grounded'],
+                inventedCitations: $citations['invented'],
             ));
 
             return $result;
@@ -91,10 +98,13 @@ final class AiController extends AbstractController
 
         return new JsonResponse([
             'ungrounded_share' => round($repository->ungroundedShare(100), 3),
+            'invented_citation_count' => $repository->countWithInventedCitations(100),
             'entries' => array_map(static fn ($log) => [
                 'id' => $log->getId(),
                 'question' => $log->getQuestion(),
                 'sources' => $log->getSources(),
+                'cited_grounded' => $log->getGroundedCitations(),
+                'cited_invented' => $log->getInventedCitations(),
                 'provider' => $log->getProvider(),
                 'latency_ms' => $log->getLatencyMs(),
                 'ungrounded' => $log->isUngrounded(),

@@ -1,7 +1,12 @@
 FROM php:8.4-cli
 
-# pdo_sqlite carries the audit trail; the rest of the stack needs nothing else.
-RUN docker-php-ext-install pdo_sqlite
+# pdo_sqlite carries the audit trail. The base image ships neither the SQLite
+# headers nor unzip, and docker-php-ext-install fails on the former with a
+# configure error that does not name the missing package — so both are explicit.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends libsqlite3-dev unzip \
+ && docker-php-ext-install pdo_sqlite \
+ && rm -rf /var/lib/apt/lists/*
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 

@@ -40,9 +40,17 @@ class QueryLog
     #[ORM\Column(type: Types::TEXT)]
     private string $answer;
 
-    /** @var list<string> */
+    /** @var list<string> Chunks the retriever returned. */
     #[ORM\Column(type: Types::JSON)]
     private array $sources;
+
+    /** @var list<string> Ids the answer actually cited that were also retrieved. */
+    #[ORM\Column(name: 'grounded_citations', type: Types::JSON)]
+    private array $groundedCitations;
+
+    /** @var list<string> Ids the answer cited that the retriever never returned. */
+    #[ORM\Column(name: 'invented_citations', type: Types::JSON)]
+    private array $inventedCitations;
 
     #[ORM\Column(length: 32)]
     private string $provider;
@@ -53,18 +61,26 @@ class QueryLog
     #[ORM\Column(name: 'created_at', type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $createdAt;
 
-    /** @param list<string> $sources */
+    /**
+     * @param list<string> $sources
+     * @param list<string> $groundedCitations
+     * @param list<string> $inventedCitations
+     */
     public function __construct(
         string $question,
         string $answer,
         array $sources,
         string $provider,
         int $latencyMs,
+        array $groundedCitations = [],
+        array $inventedCitations = [],
         ?\DateTimeImmutable $createdAt = null,
     ) {
         $this->question = $question;
         $this->answer = $answer;
         $this->sources = $sources;
+        $this->groundedCitations = $groundedCitations;
+        $this->inventedCitations = $inventedCitations;
         $this->provider = $provider;
         $this->latencyMs = $latencyMs;
         $this->createdAt = $createdAt ?? new \DateTimeImmutable();
@@ -106,15 +122,30 @@ class QueryLog
         return $this->createdAt;
     }
 
+    /** @return list<string> */
+    public function getGroundedCitations(): array
+    {
+        return $this->groundedCitations;
+    }
+
+    /** @return list<string> */
+    public function getInventedCitations(): array
+    {
+        return $this->inventedCitations;
+    }
+
     /**
-     * True when the answer cited no retrieved passage.
+     * True when the answer cited nothing the retriever had actually returned.
      *
-     * Cheap grounding signal for the audit view: an answer with no sources either
-     * abstained or was produced without support. Both are worth looking at, and
-     * the distinction is exactly the one the Python evaluation suite measures.
+     * Note what this deliberately does NOT look at: whether the retriever returned
+     * anything. Top-k is unconditional, so `sources` is populated for every query
+     * including the ones the corpus cannot answer — a metric built on it reads 0
+     * forever and tells you nothing. The first live run of this endpoint scored an
+     * abstention ("I do not know. [source#0]") as grounded for exactly that reason.
+     * What matters is whether the *answer* stood on retrieved material.
      */
     public function isUngrounded(): bool
     {
-        return $this->sources === [];
+        return $this->groundedCitations === [];
     }
 }

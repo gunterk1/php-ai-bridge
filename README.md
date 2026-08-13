@@ -134,11 +134,23 @@ ceremony.
 `node-app` forget every request the moment they return it. In the regulated
 settings this pattern keeps turning up in, you have to be able to say months later
 which question was asked, which passages the answer was built from, and which model
-produced it. A Doctrine entity records exactly that, and `/api/audit` reports the
-one number worth watching: the share of answers that cited nothing. A rising
-ungrounded share means the retriever stopped finding material, the corpus drifted
-away from what users ask, or the model started answering from its own weights —
-three different problems that all look fine from the outside.
+produced it. A Doctrine entity records exactly that, and `/api/audit` reports two
+numbers: the share of answers that cited nothing retrieved, and how many cited
+something that was never retrieved at all.
+
+The second one is the dangerous case, because a reader cannot see it — the citation
+format is identical whether the id is real or invented. The check is the same one
+the Python evaluation suite runs offline (`check_citations` in
+`ai-service/eval/metrics.py`), ported to PHP and held in place by tests on both
+sides. One definition of "grounded" enforced twice beats two definitions that drift.
+
+**The first version of that metric was wrong, and running it is what showed that.**
+It asked whether the *retriever* returned anything. Top-k is unconditional, so it
+returns something for every query including the unanswerable ones — the number read
+0 forever. The first live run scored `I do not know. [source#0]` as grounded: an
+abstention, citing a chunk that does not exist, counted as a good answer. The metric
+now looks at what the answer actually stood on, and the same query is recorded as
+ungrounded with `source#0` flagged as invented.
 
 **The write happens on an event, not in the request path.** The controller
 dispatches `QueryAnswered`; a listener persists it. The caller already has a
@@ -162,13 +174,14 @@ up as an auth failure.
 cd symfony-app
 composer install
 php bin/console doctrine:schema:create
-vendor/bin/phpunit          # 24 tests, 47 assertions
+vendor/bin/phpunit          # 33 tests, 69 assertions
 ```
 
 The suite covers the retry policy against a mocked transport (the same eleven
-behaviours `node-app` tests), the Doctrine mapping and DQL against a real schema in
-in-memory SQLite, and the full request path including the firewall and the audit
-write.
+behaviours `node-app` tests), the citation check against the same cases as its
+Python twin, the Doctrine mapping and DQL against a real schema in in-memory SQLite
+rather than a mocked EntityManager, and the full request path including the
+firewall, the audit write and an invented citation being recorded.
 
 ## Does it actually stay grounded?
 

@@ -15,13 +15,19 @@ namespace App\Event;
  */
 final class QueryAnswered
 {
-    /** @param list<string> $sources */
+    /**
+     * @param list<string> $sources           chunks the retriever returned
+     * @param list<string> $groundedCitations ids the answer cited that were retrieved
+     * @param list<string> $inventedCitations ids the answer cited that were not
+     */
     public function __construct(
         public readonly string $question,
         public readonly string $answer,
         public readonly array $sources,
         public readonly string $provider,
         public readonly int $latencyMs,
+        public readonly array $groundedCitations = [],
+        public readonly array $inventedCitations = [],
     ) {
     }
 }

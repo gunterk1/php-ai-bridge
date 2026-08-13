@@ -42,7 +42,7 @@ final class QueryLogRepository extends ServiceEntityRepository
     public function ungroundedShare(int $window = 100): float
     {
         $rows = $this->createQueryBuilder('q')
-            ->select('q.sources')
+            ->select('q.groundedCitations')
             ->orderBy('q.createdAt', 'DESC')
             ->setMaxResults($window)
             ->getQuery()
@@ -54,11 +54,37 @@ final class QueryLogRepository extends ServiceEntityRepository
 
         $ungrounded = 0;
         foreach ($rows as $row) {
-            if (($row['sources'] ?? []) === []) {
+            if (($row['groundedCitations'] ?? []) === []) {
                 $ungrounded++;
             }
         }
 
         return $ungrounded / count($rows);
+    }
+
+    /**
+     * How many recent answers cited a chunk the retriever never returned.
+     *
+     * The dangerous failure, and the one a reader cannot spot: the citation format
+     * is identical whether the id is real or invented. Anything above zero here
+     * needs looking at the same day.
+     */
+    public function countWithInventedCitations(int $window = 100): int
+    {
+        $rows = $this->createQueryBuilder('q')
+            ->select('q.inventedCitations')
+            ->orderBy('q.createdAt', 'DESC')
+            ->setMaxResults($window)
+            ->getQuery()
+            ->getArrayResult();
+
+        $count = 0;
+        foreach ($rows as $row) {
+            if (($row['inventedCitations'] ?? []) !== []) {
+                $count++;
+            }
+        }
+
+        return $count;
     }
 }

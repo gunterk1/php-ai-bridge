@@ -128,8 +128,10 @@ final class AiControllerTest extends WebTestCase
 
     public function testAnswerWithoutSourcesIsRecordedAsUngrounded(): void
     {
+        // The retriever DID return a chunk — top-k is unconditional — but the
+        // answer cited nothing. That is the case the first implementation missed.
         $client = $this->bootWithAiResponse(new MockResponse(
-            '{"answer":"I do not know.","sources":[],"provider":"local"}'
+            '{"answer":"I do not know.","sources":["boundary#0"],"provider":"local"}'
         ));
 
         $client->request('POST', '/api/query', server: [
@@ -144,6 +146,8 @@ final class AiControllerTest extends WebTestCase
 
         self::assertTrue($audit['entries'][0]['ungrounded']);
         self::assertSame(1.0, (float) $audit['ungrounded_share']);
+        self::assertSame(['boundary#0'], $audit['entries'][0]['sources']);
+        self::assertSame([], $audit['entries'][0]['cited_grounded']);
     }
 
     public function testAiServiceFailureBecomes502NotAn500(): void
@@ -158,5 +162,27 @@ final class AiControllerTest extends WebTestCase
         ], content: '{"question":"anything"}');
 
         self::assertResponseStatusCodeSame(502);
+    }
+    public function testInventedCitationIsRecordedInTheAuditTrail(): void
+    {
+        // The answer looks sourced and is not. This is the row that has to be
+        // findable afterwards; nothing in the response itself gives it away.
+        $client = $this->bootWithAiResponse(new MockResponse(
+            '{"answer":"The operator is maintained by [ghost#9].","sources":["boundary#0"],"provider":"local"}'
+        ));
+
+        $client->request('POST', '/api/query', server: [
+            'CONTENT_TYPE' => 'application/json',
+            'HTTP_X_API_KEY' => 'test-key',
+        ], content: '{"question":"Who maintains it?"}');
+
+        self::assertResponseIsSuccessful();
+
+        $client->request('GET', '/api/audit', server: ['HTTP_X_API_KEY' => 'test-key']);
+        $audit = $this->json($client);
+
+        self::assertSame(['ghost#9'], $audit['entries'][0]['cited_invented']);
+        self::assertSame(1, $audit['invented_citation_count']);
+        self::assertTrue($audit['entries'][0]['ungrounded']);
     }
 }

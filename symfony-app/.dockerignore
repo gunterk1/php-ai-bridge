@@ -1,0 +1,12 @@
+# Dependencies are installed inside the image from composer.lock, not copied in.
+vendor/
+
+# var/ holds the SQLite audit database. Copying it in would ship whatever was on
+# the build machine — the first build of this image did exactly that, and
+# doctrine:schema:create then failed with "table query_log already exists".
+var/
+
+.git/
+.env.local
+tests/
+phpunit.xml.dist

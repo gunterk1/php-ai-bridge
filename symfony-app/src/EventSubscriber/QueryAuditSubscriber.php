@@ -38,6 +38,8 @@ final class QueryAuditSubscriber
                 $event->sources,
                 $event->provider,
                 $event->latencyMs,
+                $event->groundedCitations,
+                $event->inventedCitations,
             ));
             $this->entityManager->flush();
         } catch (\Throwable $e) {
