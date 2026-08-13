@@ -30,9 +30,9 @@ services:
         condition: service_healthy
 
   # The same product surface in a second ecosystem. It talks to the identical
-  # ai-service over the identical REST boundary — running both at once is the
-  # point: open :8080 and :8081 side by side and the answers are the same,
-  # because the AI capability never lived in the app layer.
+  # ai-service over the identical REST boundary — running all three at once is
+  # the point: open :8080, :8081 and :8082 side by side and the answers are the
+  # same, because the AI capability never lived in the app layer.
   node-app:
     build: ./node-app
     environment:
@@ -43,3 +43,26 @@ services:
     depends_on:
       ai-service:
         condition: service_healthy
+
+  # Third surface, and the one that is not just a re-implementation. Symfony with
+  # Doctrine adds what a stateless proxy cannot have: an audit trail of which
+  # question was answered from which passages. Same three endpoints, plus
+  # /api/audit — and an API key on everything except /api/health.
+  symfony-app:
+    build: ./symfony-app
+    environment:
+      AI_SERVICE_URL: http://ai-service:8000
+      API_KEY: ${API_KEY:-dev-key}
+      APP_SECRET: ${APP_SECRET:-change-me-in-deployment}
+      DATABASE_URL: sqlite:////app/var/audit.db
+    ports:
+      - "8082:8082"
+    volumes:
+      # The audit trail outlives the container; that is rather the point of one.
+      - symfony-audit:/app/var
+    depends_on:
+      ai-service:
+        condition: service_healthy
+
+volumes:
+  symfony-audit:

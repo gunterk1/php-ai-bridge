@@ -1,0 +1,19 @@
+framework:
+    secret: '%env(APP_SECRET)%'
+    http_method_override: false
+    handle_all_throwables: true
+    php_errors:
+        log: true
+
+    # The retry policy lives in AiClient, not here. Symfony's HttpClient ships a
+    # RetryableHttpClient that could do it declaratively, and it is deliberately
+    # not used: php-app and node-app implement the same policy by hand, and the
+    # point of a third surface is to show the same behaviour in a third idiom —
+    # not to prove that a framework can hide it.
+    http_client:
+        default_options:
+            timeout: 30
+
+when@test:
+    framework:
+        test: true

@@ -1,0 +1,22 @@
+parameters:
+    ai_service_url: '%env(AI_SERVICE_URL)%'
+    api_key: '%env(API_KEY)%'
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    App\:
+        resource: '../src/'
+        exclude:
+            - '../src/Entity/'
+            - '../src/Kernel.php'
+
+    App\Service\AiClient:
+        arguments:
+            $baseUrl: '%ai_service_url%'
+
+    App\Security\ApiKeyAuthenticator:
+        arguments:
+            $expectedKey: '%api_key%'

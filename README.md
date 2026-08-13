@@ -17,13 +17,14 @@ so sensitive documents can stay on your own infrastructure.
      │  (HTML + fetch)
      ├──────────────────────────┐
      ▼                          ▼
-┌──────────────────────┐  ┌──────────────────────┐      REST / JSON       ┌───────────────────────────┐
-│  php-app  (PHP 8.3)  │  │ node-app (TS, Node22)│  ────────────────────▶ │  ai-service (FastAPI)     │
-│  • front controller  │  │  • front controller  │   POST /ingest         │  • LangChain               │
-│  • AiClient (curl,   │  │  • AiClient (fetch,  │   POST /query          │  • RecursiveCharacterSplit │
-│    retries, backoff) │  │    same retry policy)│   GET  /health         │  • embeddings + vector DB  │
-│  • minimal UI        │  │  • contract guards   │  ◀──────────────────── │  • RAG answer + sources    │
-└──────────────────────┘  └──────────────────────┘                        └───────────────────────────┘
+┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐   REST / JSON    ┌────────────────────────────┐
+│ php-app (PHP)    │ │ node-app (TS)    │ │ symfony-app      │ ───────────────▶ │  ai-service (FastAPI)      │
+│ • front control. │ │ • front control. │ │ • Symfony 8      │  POST /ingest    │  • LangChain                │
+│ • AiClient(curl) │ │ • AiClient(fetch)│ │ • Doctrine audit │  POST /query     │  • RecursiveCharacterSplit  │
+│ • minimal UI     │ │ • contract guards│ │ • API-key guard  │  GET  /health    │  • embeddings + vector DB   │
+│                  │ │                  │ │ • /api/audit     │ ◀─────────────── │  • RAG answer + sources     │
+└──────────────────┘ └──────────────────┘ └──────────────────┘                  └────────────────────────────┘
+        same retry policy, same three endpoints, same provider switch
                                                       │ OpenAI-compatible API
                                           ┌───────────┴────────────┐
                                           ▼                        ▼
@@ -33,12 +34,13 @@ so sensitive documents can stay on your own infrastructure.
 The app owns the product surface; the AI capability lives behind HTTP. The two
 sides scale, deploy and fail independently.
 
-**Two product surfaces, one boundary.** `php-app` and `node-app` are behaviour-
-identical clients of the same service: same three endpoints, same retry policy,
-same environment variable to point at a local or an external model. They exist
-side by side to make the central claim checkable rather than rhetorical — if the
-integration pattern is sound, the language of the app layer is an implementation
-detail. Run both and compare the answers at `:8080` and `:8081`.
+**Three product surfaces, one boundary.** `php-app`, `node-app` and `symfony-app`
+are behaviour-identical clients of the same service: same three endpoints, same
+retry policy, same environment variable to point at a local or an external model.
+They exist side by side to make the central claim checkable rather than rhetorical
+— if the integration pattern is sound, the language and framework of the app layer
+are an implementation detail. Run all three and compare the answers at `:8080`,
+`:8081` and `:8082`.
 
 This is the same shape as Nextcloud's `integration_openai`-style apps, where the
 collaboration platform calls an AI backend over HTTP and stays agnostic about
@@ -52,8 +54,8 @@ where that backend lives.
 | POST   | `/api/ingest`  | `POST /ingest`    | Chunk, embed and store a document         |
 | POST   | `/api/query`   | `POST /query`     | Retrieve top-k chunks, answer with sources|
 
-The Node app exposes exactly the same three paths on `:8081`. `/` serves a
-minimal UI on both.
+The Node app exposes the same three paths on `:8081`; the Symfony app exposes them
+under `/api` on `:8082`, plus `/api/audit`. All three serve a minimal UI at `/`.
 
 ## Run it
 
@@ -65,9 +67,10 @@ cp .env.example .env
 # or switch AI_PROVIDER=local and point OPENAI_BASE_URL at your local server.
 
 docker compose up --build
-# PHP UI:     http://localhost:8080
-# Node UI:    http://localhost:8081
-# AI service: http://localhost:8000/health
+# PHP UI:      http://localhost:8080
+# Node UI:     http://localhost:8081
+# Symfony UI:  http://localhost:8082   (API key: dev-key)
+# AI service:  http://localhost:8000/health
 ```
 
 Then, from another shell:
@@ -119,6 +122,53 @@ guards impossible rather than merely discouraged.
 **No runtime dependencies.** Three routes and one static file do not justify a
 framework; `node:http` and the built-in `fetch` cover it. The production image is
 the Node base plus roughly 20 kB of compiled JavaScript.
+
+## The Symfony side
+
+`symfony-app/` is the third surface, and the only one that is not just the same
+proxy in another language. Symfony and Doctrine buy something the stateless clients
+cannot have, so the app uses it rather than re-implementing `php-app` with more
+ceremony.
+
+**An audit trail, because that is what a database is for here.** `php-app` and
+`node-app` forget every request the moment they return it. In the regulated
+settings this pattern keeps turning up in, you have to be able to say months later
+which question was asked, which passages the answer was built from, and which model
+produced it. A Doctrine entity records exactly that, and `/api/audit` reports the
+one number worth watching: the share of answers that cited nothing. A rising
+ungrounded share means the retriever stopped finding material, the corpus drifted
+away from what users ask, or the model started answering from its own weights —
+three different problems that all look fine from the outside.
+
+**The write happens on an event, not in the request path.** The controller
+dispatches `QueryAnswered`; a listener persists it. The caller already has a
+correct answer by then, so a database hiccup is logged rather than turned into a
+500. That is a deliberate trade-off and the code says so: if the audit trail had to
+be transactional with the answer, the listener would be the wrong design.
+
+**The retry policy is written out by hand, again.** Symfony ships
+`RetryableHttpClient`, which would express it in configuration. Not using it is the
+point — three surfaces exist to compare one behaviour across three idioms, and
+hiding it inside framework config would remove the thing being compared.
+
+**An API key on everything except `/api/health`**, via a custom authenticator that
+compares with `hash_equals` (a plain `===` here leaks the key through response
+timing) and fails closed when the configured key is empty. It doubles as the
+firewall's entry point, so a request with no credentials gets JSON instead of
+Symfony's HTML error page — an HTML 401 to a JSON client is a parse error dressed
+up as an auth failure.
+
+```bash
+cd symfony-app
+composer install
+php bin/console doctrine:schema:create
+vendor/bin/phpunit          # 24 tests, 47 assertions
+```
+
+The suite covers the retry policy against a mocked transport (the same eleven
+behaviours `node-app` tests), the Doctrine mapping and DQL against a real schema in
+in-memory SQLite, and the full request path including the firewall and the audit
+write.
 
 ## Does it actually stay grounded?
 

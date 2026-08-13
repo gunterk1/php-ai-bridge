@@ -1,0 +1,27 @@
+# The audit trail records which question was asked against which documents. In a
+# regulated setting that is exactly the data you do not leave open, so the write
+# endpoints sit behind an API key. /health stays public: a liveness probe that
+# needs a credential is a liveness probe that fails for the wrong reasons.
+security:
+    providers:
+        api_clients:
+            memory:
+                users:
+                    service-client: { roles: ['ROLE_API'] }
+
+    firewalls:
+        health:
+            pattern: ^/api/health$
+            security: false
+        api:
+            pattern: ^/api
+            stateless: true
+            entry_point: App\Security\ApiKeyAuthenticator
+            custom_authenticators:
+                - App\Security\ApiKeyAuthenticator
+        main:
+            security: false
+
+    access_control:
+        - { path: ^/api/health$, roles: PUBLIC_ACCESS }
+        - { path: ^/api, roles: ROLE_API }

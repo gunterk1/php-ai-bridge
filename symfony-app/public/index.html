@@ -1,0 +1,63 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>php-ai-bridge — Symfony surface</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 15px/1.55 system-ui, sans-serif; max-width: 46rem; margin: 3rem auto; padding: 0 1rem; }
+  h1 { font-size: 1.3rem; margin-bottom: .2rem; }
+  p.lede { color: #666; margin-top: 0; }
+  fieldset { border: 1px solid #8884; border-radius: 6px; margin: 1.2rem 0; padding: 1rem; }
+  legend { padding: 0 .4rem; font-weight: 600; }
+  input, textarea, button { font: inherit; width: 100%; box-sizing: border-box; margin-top: .4rem; }
+  button { width: auto; padding: .4rem 1rem; margin-top: .8rem; cursor: pointer; }
+  pre { background: #8881; padding: .8rem; border-radius: 6px; overflow-x: auto; white-space: pre-wrap; }
+  .row { display: flex; gap: .6rem; align-items: baseline; }
+</style>
+
+<h1>php-ai-bridge — Symfony surface</h1>
+<p class="lede">Third implementation of the same REST contract. Adds a Doctrine-backed audit trail.</p>
+
+<fieldset>
+  <legend>API key</legend>
+  <input id="key" value="dev-key" aria-label="API key">
+  <small>Sent as <code>X-API-Key</code>. <code>/api/health</code> is public; everything else is not.</small>
+</fieldset>
+
+<fieldset>
+  <legend>Ingest</legend>
+  <input id="docId" placeholder="doc_id" value="sample">
+  <textarea id="text" rows="4" placeholder="Document text…"></textarea>
+  <button onclick="call('/api/ingest', {doc_id: docId.value, text: text.value})">Ingest</button>
+</fieldset>
+
+<fieldset>
+  <legend>Query</legend>
+  <input id="question" placeholder="Ask something about the ingested documents…">
+  <button onclick="call('/api/query', {question: question.value, k: 4})">Ask</button>
+</fieldset>
+
+<fieldset>
+  <legend>Audit trail</legend>
+  <div class="row">
+    <button onclick="call('/api/audit')">Show recent</button>
+    <small>Includes the ungrounded share — answers that cited nothing.</small>
+  </div>
+</fieldset>
+
+<pre id="out">Ready.</pre>
+
+<script>
+  async function call(path, body) {
+    out.textContent = '…';
+    try {
+      const res = await fetch(path, {
+        method: body ? 'POST' : 'GET',
+        headers: { 'Content-Type': 'application/json', 'X-API-Key': key.value },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      out.textContent = JSON.stringify(await res.json(), null, 2);
+    } catch (e) {
+      out.textContent = 'Request failed: ' + e.message;
+    }
+  }
+</script>
