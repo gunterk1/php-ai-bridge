@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import os
 
-from fastapi import FastAPI, HTTPException
+import anyio.to_thread
+import httpx
+from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel
 
 from .rag import RagEngine
@@ -28,6 +30,32 @@ def get_engine() -> RagEngine:
     if _engine is None:
         _engine = RagEngine()
     return _engine
+
+
+def _free_worker_threads() -> int:
+    """How many slots are left in the threadpool that serves sync endpoints.
+
+    anyio caps it (40 by default) and every synchronous endpoint -- /query,
+    /ingest, and /health -- draws from the same pool. Once it is empty, further
+    sync requests queue, and the queue is invisible from outside unless
+    something reports it.
+    """
+    try:
+        limiter = anyio.to_thread.current_default_thread_limiter()
+    except RuntimeError:  # no running event loop
+        return -1
+    return int(limiter.total_tokens - limiter.borrowed_tokens)
+
+
+async def _backend_reachable() -> tuple[bool, str]:
+    """Ask the configured model server whether it is there, briefly."""
+    base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
+    try:
+        async with httpx.AsyncClient(timeout=1.5) as client:
+            await client.get(f"{base_url}/models")
+        return True, "reachable"
+    except httpx.HTTPError as exc:
+        return False, f"unreachable: {type(exc).__name__}"
 
 
 class IngestRequest(BaseModel):
@@ -63,7 +91,55 @@ def _guard(fn, *args):
 
 @app.get("/health")
 def health() -> dict:
+    """Kept for compatibility with docker-compose and the three app surfaces.
+
+    Note what it is not: it is a synchronous endpoint, so Starlette runs it in
+    the same bounded threadpool that serves /query. Under enough concurrent
+    inference it waits for a work thread like everything else. Pointing a
+    liveness probe at it makes the probe a queue-depth measurement -- see
+    /alive.
+    """
     return {"status": "ok", "provider": os.getenv("AI_PROVIDER", "openai")}
+
+
+@app.get("/alive")
+async def alive() -> dict:
+    """Liveness: is this process still running its event loop?
+
+    Declared async on purpose. Starlette runs async endpoints on the event loop
+    instead of handing them to the threadpool, so this answers immediately no
+    matter how many completions are in flight. A liveness probe must not share
+    a resource with the work it is supposed to be observing -- otherwise a busy
+    pod is indistinguishable from a dead one, and the kubelet resolves that
+    ambiguity by killing it.
+    """
+    return {"status": "alive"}
+
+
+@app.get("/ready")
+async def ready(response: Response) -> dict:
+    """Readiness: can this pod serve a request right now?
+
+    Two things have to hold, and /health checks neither. The model backend has
+    to be reachable, and there has to be a free work thread to run the call in.
+    Answering ok unconditionally means traffic is routed to a pod that will 502,
+    which is exactly the failure readiness exists to prevent.
+
+    Failing readiness is cheap: the endpoint leaves the service, in-flight work
+    finishes, and it comes back. Failing liveness is not: the pod is killed.
+    """
+    free_threads = _free_worker_threads()
+    backend_ok, detail = await _backend_reachable()
+
+    ok = backend_ok and free_threads > 0
+    if not ok:
+        response.status_code = 503
+
+    return {
+        "ready": ok,
+        "backend": detail,
+        "free_worker_threads": free_threads,
+    }
 
 
 @app.post("/ingest")

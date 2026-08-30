@@ -1,0 +1,22 @@
+{
+  "probe_profile": "honest",
+  "pod_restarts_during_run": 0,
+  "kubelet_said": null,
+  "load": {
+    "elapsed_s": 185.0,
+    "concurrency": 60,
+    "answers_grounded": 320,
+    "answers_from_empty_store": 0,
+    "reingests_needed": 0,
+    "requests_failed": 59,
+    "failure_kinds": {
+      "URLError": 59
+    },
+    "latency_s": {
+      "min": 20.02,
+      "median": 25.3,
+      "max": 50.06
+    }
+  },
+  "silent_index_loss": false
+}

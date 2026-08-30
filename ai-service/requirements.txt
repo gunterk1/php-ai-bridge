@@ -9,3 +9,8 @@ pydantic>=2.9,<3
 # transitiv mit, aber eine Abhaengigkeit, auf die eigener Code zugreift, gehoert
 # deklariert — sonst bricht der Eval-Lauf beim naechsten Upstream-Umbau.
 PyYAML>=6.0,<7
+
+# /ready asks the model backend whether it is reachable without borrowing a
+# worker thread to do it. httpx already arrives transitively via langchain-openai,
+# but code that imports it directly has to declare it.
+httpx>=0.27,<1

@@ -1,0 +1,7 @@
+# Provider binaries and the local backend's state. The lock file is committed on
+# purpose -- it pins the provider version so a later apply cannot silently pick
+# up a different one.
+terraform/.terraform/
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+terraform/*.tfvars

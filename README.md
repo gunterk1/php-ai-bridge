@@ -50,12 +50,25 @@ where that backend lives.
 
 | Method | Path (PHP)     | Proxies to (AI)   | Purpose                                   |
 |--------|----------------|-------------------|-------------------------------------------|
-| GET    | `/api/health`  | `GET /health`     | Liveness + which provider is configured   |
+| GET    | `/api/health`  | `GET /health`     | Answers ok unconditionally; see below     |
 | POST   | `/api/ingest`  | `POST /ingest`    | Chunk, embed and store a document         |
 | POST   | `/api/query`   | `POST /query`     | Retrieve top-k chunks, answer with sources|
 
 The Node app exposes the same three paths on `:8081`; the Symfony app exposes them
 under `/api` on `:8082`, plus `/api/audit`. All three serve a minimal UI at `/`.
+
+The AI service carries two further endpoints that the app surfaces do not proxy,
+because they exist for an orchestrator rather than for a user:
+
+| Method | Path (AI)  | Purpose                                                        |
+|--------|------------|----------------------------------------------------------------|
+| GET    | `/alive`   | Liveness. `async`, so it never queues behind inference           |
+| GET    | `/ready`   | Readiness. Checks the model backend and free worker threads      |
+
+`/health` is neither of those and never was: it is synchronous, so it competes
+for the same threadpool as `/query`, and it reports ok whether or not anything
+works. Pointing a liveness probe at it gets a healthy service killed — measured,
+with numbers, in [`deploy/README.md`](deploy/README.md).
 
 ## Run it
 
@@ -234,7 +247,14 @@ both. You switch with environment variables only:
   goes through LangChain's `VectorStore` interface, swapping in pgvector, Qdrant
   or Chroma is a one-line change.
 - **Lazy engine init** means the container and `/health` come up without
-  credentials; keys are only needed once a real embed/answer call happens.
+  credentials; keys are only needed once a real embed/answer call happens. The
+  flip side is that "up" and "able to answer" are different states, which is why
+  `/ready` exists and `/health` is not a readiness signal.
+- **Deployed, and measured under load.** [`deploy/`](deploy/) runs the whole
+  system on Kubernetes with Terraform-managed workloads. The interesting part is
+  not that it deploys: it is that the probe configuration most services ship with
+  restarted this one three times in three minutes while nothing was wrong, and
+  that each restart silently emptied the vector store while the pod stayed green.
 
 ## Not in scope
 

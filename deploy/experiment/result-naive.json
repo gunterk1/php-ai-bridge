@@ -1,0 +1,22 @@
+{
+  "probe_profile": "naive",
+  "pod_restarts_during_run": 3,
+  "kubelet_said": "Container ai-service failed liveness probe, will be restarted",
+  "load": {
+    "elapsed_s": 183.5,
+    "concurrency": 60,
+    "answers_grounded": 219,
+    "answers_from_empty_store": 60,
+    "reingests_needed": 3,
+    "requests_failed": 100,
+    "failure_kinds": {
+      "URLError": 100
+    },
+    "latency_s": {
+      "min": 20.38,
+      "median": 55.8,
+      "max": 72.78
+    }
+  },
+  "silent_index_loss": true
+}
