@@ -1,0 +1,374 @@
+{
+  "summary": {
+    "agent_model": "ollama_chat/llama3.2:1b",
+    "judge_model": "ollama_chat/llama3.2:1b",
+    "num_samples": 5,
+    "repeats": 3,
+    "recall_at_k": 0.75,
+    "mrr": 0.688,
+    "answers_with_citations": 7,
+    "invented_citations": 3,
+    "deterministic_failures": [
+      "a4",
+      "a6",
+      "u2",
+      "u3",
+      "u5"
+    ],
+    "needs_human_review": [],
+    "judge_no_verdict": 9
+  },
+  "rows": [
+    {
+      "id": "a1",
+      "kind": "answerable",
+      "question": "Why does the PHP application not import a model SDK?",
+      "expected_sources": [
+        "boundary#0"
+      ],
+      "answer": "{\"type\":\"function\",\"name\":\"search_docs\",[\"question\":\"PHP application does not import a model SDK.\",\"properties\":{}}}\n\n{\"type\":\"function\",\"name\":\"search_docs\",[\"question\":\"How do I configure PHP to use a model SDK?\",\"properties\":{}}}\n\n{\"type\":\"function\",\"name\":\"search_docs\",[\"question\":\"What are the common scenarios where a model SDK is required in PHP.\",\"properties\":{}}}\n\n{\"type\":\"function\",\"name\":\"search_docs\",[\"question\":\"Can you provide more information about how to configure PHP for machine learning model deployment?\",\"properties\":{}}}\n\n{\"type\":\"function\",\"name\":\"search_docs\",[\"question\":\"What are the benefits of using a model SDK in PHP for machine learning.\",\"parameters\":{\"type\":\"string\",\"value\":\"Benefits of using a model SDK in PHP for machine learning\"}}",
+      "retrieved": [],
+      "seconds": 12.1,
+      "abstention": "answered",
+      "invented_citations": [],
+      "cited": [],
+      "recall_at_k": 0.0,
+      "reciprocal_rank": 0.0,
+      "deterministic_verdict": "pass",
+      "judge_scores": [
+        0.6666666666666666,
+        null,
+        0.3333333333333333
+      ]
+    },
+    {
+      "id": "a2",
+      "kind": "answerable",
+      "question": "Which three endpoints does the AI service expose?",
+      "expected_sources": [
+        "boundary#0"
+      ],
+      "answer": "The three endpoints exposed by the AI service are:\n\n1. `/health`\n2. `/ingest`\n3. `/query`",
+      "retrieved": [
+        "boundary#0",
+        "providers#0",
+        "contracts#0",
+        "providers#1"
+      ],
+      "seconds": 7.8,
+      "abstention": "answered",
+      "invented_citations": [],
+      "cited": [],
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 1.0,
+      "deterministic_verdict": "pass",
+      "judge_scores": [
+        1.0,
+        0.5,
+        0.25
+      ]
+    },
+    {
+      "id": "a3",
+      "kind": "answerable",
+      "question": "How do I switch the service from OpenAI to a local model?",
+      "expected_sources": [
+        "providers#0"
+      ],
+      "answer": "To switch the service from OpenAI to a local model, you need to set `AI_PROVIDER` environment variable to \"local\" and `OPENAI_BASE_URL` to null or an empty string. You can also set `CHAT_MODEL`, `EMBED_MODEL`, and `OPENAI_API_KEY` variables with your local backend URL.",
+      "retrieved": [
+        "providers#0",
+        "boundary#0",
+        "providers#1",
+        "contracts#0"
+      ],
+      "seconds": 14.9,
+      "abstention": "answered",
+      "invented_citations": [],
+      "cited": [],
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 1.0,
+      "deterministic_verdict": "pass",
+      "judge_scores": [
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "id": "a4",
+      "kind": "answerable",
+      "question": "Why is client-side token counting disabled for local backends?",
+      "expected_sources": [
+        "providers#1"
+      ],
+      "answer": "Client-side token counting is disabled for local backends because self-hosted servers often lack the tiktoken vocabulary that OpenAI uses, resulting in incorrect handling of client-side token counting. [boundary#0]",
+      "retrieved": [
+        "providers#1",
+        "retry#0",
+        "contracts#0",
+        "providers#0"
+      ],
+      "seconds": 12.8,
+      "abstention": "answered",
+      "invented_citations": [
+        "boundary#0"
+      ],
+      "cited": [
+        "boundary#0"
+      ],
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 1.0,
+      "deterministic_verdict": "fail",
+      "judge_scores": [
+        null,
+        0.6,
+        null
+      ]
+    },
+    {
+      "id": "a5",
+      "kind": "answerable",
+      "question": "Is a 429 response retried, and why?",
+      "expected_sources": [
+        "retry#0"
+      ],
+      "answer": "A 429 response does not imply that it will be retried. According to the transient failures are retried, deterministic ones are not policy, and network errors and 5xx responses are retried with exponential backoff, any 4xx response is surfaced immediately without a retry, including 429 from an exhausted quota. [retry#0][boundary#0][contracts#0][providers#0]",
+      "retrieved": [
+        "retry#0",
+        "boundary#0",
+        "contracts#0",
+        "providers#0"
+      ],
+      "seconds": 16.1,
+      "abstention": "answered",
+      "invented_citations": [],
+      "cited": [
+        "retry#0",
+        "boundary#0",
+        "contracts#0",
+        "providers#0"
+      ],
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 1.0,
+      "deterministic_verdict": "pass",
+      "judge_scores": [
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "id": "a6",
+      "kind": "answerable",
+      "question": "How long does the client wait between retry attempts?",
+      "expected_sources": [
+        "retry#0"
+      ],
+      "answer": "The client waits between retry attempts for a maximum of 5 seconds [boundary#2].",
+      "retrieved": [
+        "boundary#0",
+        "contracts#0",
+        "providers#0",
+        "providers#1"
+      ],
+      "seconds": 20.2,
+      "abstention": "answered",
+      "invented_citations": [
+        "boundary#2"
+      ],
+      "cited": [
+        "boundary#2"
+      ],
+      "recall_at_k": 0.0,
+      "reciprocal_rank": 0.0,
+      "deterministic_verdict": "fail",
+      "judge_scores": [
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "id": "a7",
+      "kind": "answerable",
+      "question": "What happens when the Python service returns a field the client does not expect?",
+      "expected_sources": [
+        "contracts#0"
+      ],
+      "answer": "I do not know. The Python service returned a field that the client does not expect, which will cause a runtime error. The correct approach would be to handle this exception explicitly in the code or add additional error handling mechanisms.",
+      "retrieved": [
+        "boundary#0",
+        "contracts#0",
+        "retry#0",
+        "providers#0"
+      ],
+      "seconds": 14.3,
+      "abstention": "abstained",
+      "invented_citations": [],
+      "cited": [],
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 0.5,
+      "deterministic_verdict": "pass",
+      "judge_scores": [
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "id": "a8",
+      "kind": "answerable",
+      "question": "Which two TypeScript compiler options are enabled, and what do they achieve?",
+      "expected_sources": [
+        "contracts#0"
+      ],
+      "answer": "The two TypeScript compiler options enabled are `strict` and `noUncheckedIndexedAccess`. [boundary#0] achieves strict, while [retry#0] achieves nouncheckedIndexedAccess.",
+      "retrieved": [
+        "contracts#0",
+        "retry#0",
+        "boundary#0",
+        "providers#0"
+      ],
+      "seconds": 13.6,
+      "abstention": "answered",
+      "invented_citations": [],
+      "cited": [
+        "boundary#0",
+        "retry#0"
+      ],
+      "recall_at_k": 1.0,
+      "reciprocal_rank": 1.0,
+      "deterministic_verdict": "pass",
+      "judge_scores": [
+        0.6666666666666666,
+        0.5,
+        null
+      ]
+    },
+    {
+      "id": "u1",
+      "kind": "unanswerable",
+      "question": "What does the hosted plan cost per month?",
+      "expected_sources": [],
+      "answer": "I do not know.",
+      "retrieved": [
+        "providers#0",
+        "providers#1",
+        "boundary#0",
+        "contracts#0"
+      ],
+      "seconds": 10.3,
+      "abstention": "abstained",
+      "invented_citations": [],
+      "cited": [],
+      "deterministic_verdict": "pass",
+      "judge_scores": [
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "id": "u2",
+      "kind": "unanswerable",
+      "question": "Which Postgres version does the vector store persist to?",
+      "expected_sources": [],
+      "answer": "The vector store persists to Postgres version 13. [boundary#0]",
+      "retrieved": [
+        "boundary#0",
+        "contracts#0",
+        "providers#0",
+        "providers#1"
+      ],
+      "seconds": 11.0,
+      "abstention": "answered",
+      "invented_citations": [],
+      "cited": [
+        "boundary#0"
+      ],
+      "deterministic_verdict": "fail",
+      "judge_scores": [
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "id": "u3",
+      "kind": "unanswerable",
+      "question": "Who maintains the Kubernetes operator for this project?",
+      "expected_sources": [],
+      "answer": "The Kubernetes operator maintainer is [boundary#1].",
+      "retrieved": [
+        "boundary#0",
+        "contracts#0",
+        "providers#0",
+        "providers#1"
+      ],
+      "seconds": 14.8,
+      "abstention": "answered",
+      "invented_citations": [
+        "boundary#1"
+      ],
+      "cited": [
+        "boundary#1"
+      ],
+      "deterministic_verdict": "fail",
+      "judge_scores": [
+        null,
+        null,
+        0.4
+      ]
+    },
+    {
+      "id": "u4",
+      "kind": "unanswerable",
+      "question": "What is the p95 latency of the query endpoint under load?",
+      "expected_sources": [],
+      "answer": "The p95 latency of the query endpoint under load is not specified in the provided text. I do not know.",
+      "retrieved": [
+        "boundary#0",
+        "contracts#0",
+        "providers#0",
+        "providers#1"
+      ],
+      "seconds": 18.5,
+      "abstention": "abstained",
+      "invented_citations": [],
+      "cited": [],
+      "deterministic_verdict": "pass",
+      "judge_scores": [
+        null,
+        0.5,
+        0.0
+      ]
+    },
+    {
+      "id": "u5",
+      "kind": "unanswerable",
+      "question": "How many retries does the PHP client perform on a 404?",
+      "expected_sources": [],
+      "answer": "The PHP client performs two retries for a 404 status code. [retry#0] and [boundary#0].",
+      "retrieved": [
+        "retry#0",
+        "boundary#0",
+        "providers#1",
+        "contracts#0"
+      ],
+      "seconds": 18.9,
+      "abstention": "answered",
+      "invented_citations": [],
+      "cited": [
+        "retry#0",
+        "boundary#0"
+      ],
+      "deterministic_verdict": "fail",
+      "judge_scores": [
+        1.0,
+        null,
+        null
+      ]
+    }
+  ]
+}
