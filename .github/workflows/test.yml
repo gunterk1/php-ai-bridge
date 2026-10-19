@@ -1,0 +1,105 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Vier Teilprojekte, vier Oekosysteme — das ist die Kernaussage des Repos:
+# laeuft dieselbe Integration in zwei Oekosystemen identisch, lag die
+# AI-Faehigkeit nie in der App-Schicht. Deshalb vier getrennte Jobs statt
+# einer Matrix: jedes Teilprojekt bringt seine eigene Toolchain mit.
+jobs:
+  ai-service:
+    name: ai-service (Python, Evaluationsmetriken)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ai-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: ai-service/requirements.txt
+      - name: Abhaengigkeiten
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          # pytest steht in keiner requirements.txt — die Testabhaengigkeit ist
+          # im Repo nicht deklariert und wird hier ausdruecklich nachgezogen.
+          pip install pytest
+      - name: pytest (eval/test_metrics.py)
+        run: pytest eval -q
+
+  adk-agent:
+    name: adk-agent (Python, Index)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: adk-agent
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: adk-agent/requirements.txt
+      - name: Abhaengigkeiten
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+      - name: pytest
+        run: pytest -q
+
+  node-app:
+    name: node-app (TypeScript, Vertragspruefung)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: node-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: node-app/package-lock.json
+      - run: npm ci
+      # strict plus noUncheckedIndexedAccess machen das Umgehen unmoeglich
+      # statt bloss unerwuenscht — der Typecheck ist deshalb ein eigenes Tor.
+      - name: typecheck
+        run: npm run typecheck
+      - name: tests (node:test)
+        run: npm test
+
+  symfony-app:
+    name: symfony-app (PHP, Doctrine gegen echtes Schema)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: symfony-app
+    steps:
+      - uses: actions/checkout@v4
+
+      # Die Tests legen das Schema per SchemaTool in In-Memory-SQLite an statt
+      # einen EntityManager zu mocken. pdo_sqlite ist damit keine Bequemlichkeit,
+      # sondern Voraussetzung: ohne die Erweiterung bricht die Suite mit
+      # "could not find driver" ab, bevor ein Assert laeuft.
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo, pdo_sqlite, sqlite3, mbstring
+          coverage: none
+
+      - name: composer install
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: phpunit
+        run: vendor/bin/phpunit
